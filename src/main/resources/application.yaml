@@ -1,0 +1,93 @@
+spring:
+  application:
+   name: api-gateway
+
+  config:
+    import: configserver:http://localhost:8888
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: ms-product
+          uri: http://localhost:8080
+          predicates:
+            - Path=/products/**
+          filters:
+
+            - name: CircuitBreaker
+              args:
+                name: productServiceCircuitBreaker
+                fallbackUri: forward:/fallback/productServiceFallback
+
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 5
+            - RewritePath=/products/?(?<segment>.*), /${segment}
+
+        - id: ms-order
+          uri: http://localhost:8081
+          predicates:
+            - Path=/orders/**
+          filters:
+
+            - name: CircuitBreaker
+              args:
+                name: orderServiceCircuitBreaker
+                fallbackUri: forward:/fallback/orderServiceFallback
+
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 1
+            - RewritePath=/orders/?(?<segment>.*), /${segment}
+
+        - id: ms-payment
+          uri: http://localhost:8082
+          predicates:
+            - Path=/payments/**
+          filters:
+
+            - name: CircuitBreaker
+              args:
+                name: paymentServiceCircuitBreaker
+                fallbackUri: forward:/fallback/paymentServiceFallback
+
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 5
+            - RewritePath=/payments/?(?<segment>.*), /${segment}
+
+
+springdoc:
+  swagger-ui:
+    urls:
+      - name: ms-product
+        url: http://localhost:8080/v3/api-docs
+
+      - name: ms-order
+        url: http://localhost:8081/v3/api-docs
+
+      - name: ms-payment
+        url: http://localhost:8082/v3/api-docs
+
+
+#---------------------------------------------------------server
+
+server:
+  port: 9090
+
+#----------------------------------------------------------zipkin
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  zipkin:
+    tracing:
+      read-timeout: 1
